@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Status / Logs</h2>
+{% for log in logs %}
+  <section>
+    <h3>{{ log.name }}</h3>
+    <pre style="background:#111;color:#efe;padding:10px;max-height:300px;overflow:auto;">{{ log.tail }}</pre>
+  </section>
+{% endfor %}
+{% endblock %}

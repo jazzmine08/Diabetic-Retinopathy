@@ -1,0 +1,80 @@
+{% extends "base.html" %}
+{% block title %}Dashboard{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+  <h2 class="fw-bold mb-4"><i class="fa-solid fa-gauge-high me-2"></i>Dashboard Ensemble DR</h2>
+  <p class="text-muted mb-4">Ringkasan performa sistem deteksi Retinopati Diabetik berbasis Ensemble Learning.</p>
+
+  <!-- Statistik Card -->
+  <div class="row g-4">
+    <div class="col-md-3">
+      <div class="card text-center bg-primary text-white shadow-sm">
+        <div class="card-body">
+          <h5>Akurasi</h5>
+          <h2>{{ metrics.accuracy }}%</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center bg-success text-white shadow-sm">
+        <div class="card-body">
+          <h5>Presisi</h5>
+          <h2>{{ metrics.precision }}%</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center bg-warning text-dark shadow-sm">
+        <div class="card-body">
+          <h5>Recall</h5>
+          <h2>{{ metrics.recall }}%</h2>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="card text-center bg-danger text-white shadow-sm">
+        <div class="card-body">
+          <h5>F1-Score</h5>
+          <h2>{{ metrics.f1 }}%</h2>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grafik Model -->
+  <div class="card mt-5 shadow-sm border-0">
+    <div class="card-header bg-light">
+      <h5 class="fw-bold mb-0"><i class="fa-solid fa-chart-line me-2"></i>Perbandingan Performa Model</h5>
+    </div>
+    <div class="card-body">
+      <canvas id="modelChart" height="100"></canvas>
+    </div>
+  </div>
+
+  <!-- Navigasi -->
+  <div class="mt-5 text-center">
+    <a href="{{ url_for('preprocessing') }}" class="btn btn-outline-primary btn-lg me-2"><i class="fa fa-cogs"></i> Preprocessing</a>
+    <a href="{{ url_for('eda') }}" class="btn btn-outline-success btn-lg me-2"><i class="fa fa-chart-bar"></i> EDA</a>
+    <a href="{{ url_for('training') }}" class="btn btn-outline-warning btn-lg me-2"><i class="fa fa-brain"></i> Training</a>
+    <a href="{{ url_for('hasil_model') }}" class="btn btn-outline-danger btn-lg"><i class="fa fa-chart-line"></i> Hasil Model</a>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const ctx = document.getElementById('modelChart');
+new Chart(ctx, {
+  type: 'bar',
+  data: {
+    labels: {{ chart_data.labels|tojson }},
+    datasets: [{
+      label: 'Akurasi (%)',
+      data: {{ chart_data.scores|tojson }},
+      backgroundColor: ['#0d6efd', '#198754', '#ffc107', '#dc3545']
+    }]
+  },
+  options: { scales: { y: { beginAtZero: true, max: 100 } } }
+});
+</script>
+{% endblock %}

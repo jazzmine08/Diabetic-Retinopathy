@@ -1,0 +1,10 @@
+{% extends "base.html" %}
+{% block content %}
+<h2>Stacking Ensemble</h2>
+<form method="post">
+  <label>Models dir: <input name="models_dir" value="models"></label><br/>
+  <label>Data dir: <input name="data_dir" value="DR_preprocessed_final"></label><br/>
+  <label>Output dir: <input name="out_dir" value="results/ensemble"></label><br/>
+  <button type="submit">Mulai Stacking</button>
+</form>
+{% endblock %}

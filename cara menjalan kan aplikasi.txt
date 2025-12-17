@@ -1,0 +1,18 @@
+Pastikan Python minimal versi 3.10–3.12, karena TensorFlow terbaru tidak support <3.10.
+
+Jalankan:
+
+python -m venv venv
+venv\Scripts\activate   # Windows
+# atau
+source venv/bin/activate  # Linux / Mac
+pip install --upgrade pip
+pip install -r requirements.txt
+
+
+Jalankan app:
+
+python app.py
+
+
+Socket.IO akan otomatis menggunakan eventlet sebagai server async.

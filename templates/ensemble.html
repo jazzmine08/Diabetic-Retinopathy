@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+{% block title %}Ensemble Pipeline{% endblock %}
+
+{% block content %}
+
+<div class="container py-4">
+
+    <h2 class="text-center mb-4">Ensemble Pipeline</h2>
+
+    <!-- FORM -->
+    <div class="card p-3 mb-4">
+        <h5 class="mb-3">Pengaturan Ensemble</h5>
+
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label>Processed Dataset Folder</label>
+                <input id="processed_dir" type="text" class="form-control" value="dataset/training">
+            </div>
+
+            <div class="col-md-6 mb-3">
+                <label>Models Folder</label>
+                <input id="models_dir" type="text" class="form-control" value="models">
+            </div>
+        </div>
+
+        <div class="row mt-2">
+            <div class="col-md-4 mb-3 d-flex align-items-center">
+                <input id="use_cnn" class="form-check-input me-2" type="checkbox" checked>
+                <label class="form-check-label">Gunakan CNN Features</label>
+            </div>
+
+            <div class="col-md-4 mb-3 d-flex align-items-center">
+                <input id="use_image_feats" class="form-check-input me-2" type="checkbox" checked>
+                <label class="form-check-label">Gunakan Image Features</label>
+            </div>
+
+            <div class="col-md-4 mb-3">
+                <label>PCA Components</label>
+                <input id="n_pca" type="number" class="form-control" value="150">
+            </div>
+        </div>
+
+        <button id="btnRun" class="btn btn-primary mt-2 w-100">Jalankan Ensemble</button>
+    </div>
+
+    <!-- PROGRESS -->
+    <div class="card p-3 mb-4">
+        <h5>Progress</h5>
+        <div class="progress">
+            <div id="progressBar" class="progress-bar bg-success" style="width: 0%">0%</div>
+        </div>
+    </div>
+
+    <!-- LOGS -->
+    <div class="card p-3 mb-4">
+        <h5>Logs</h5>
+        <textarea id="logBox" class="form-control" rows="12" readonly style="font-family: monospace;"></textarea>
+        <button id="clearLog" class="btn btn-secondary mt-3">Clear Logs</button>
+    </div>
+
+</div>
+
+<script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+<script>
+    const socket = io();
+
+    function addLog(msg) {
+        const box = document.getElementById("logBox");
+        box.value += msg + "\n";
+        box.scrollTop = box.scrollHeight;
+    }
+
+    document.getElementById("btnRun").onclick = () => {
+        addLog("🚀 Memulai Ensemble...");
+
+        const payload = {
+            processed_dir: document.getElementById("processed_dir").value,
+            models_dir: document.getElementById("models_dir").value,
+            results_dir: "models/results/ensemble",
+            use_cnn: document.getElementById("use_cnn").checked,
+            use_image_feats: document.getElementById("use_image_feats").checked,
+            n_pca: parseInt(document.getElementById("n_pca").value)
+        };
+
+        fetch("/run_ensemble", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify(payload)
+        });
+    };
+
+    socket.on("ensemble_log", (data) => {
+        addLog(data.message);
+    });
+
+    socket.on("ensemble_progress", (data) => {
+        let p = data.progress;
+        const bar = document.getElementById("progressBar");
+        bar.style.width = p + "%";
+        bar.innerHTML = p + "%";
+    });
+
+    socket.on("ensemble_done", () => {
+        addLog("✅ Ensemble selesai!");
+        const bar = document.getElementById("progressBar");
+        bar.style.width = "100%";
+        bar.innerHTML = "100%";
+    });
+
+    socket.on("ensemble_error", (data) => {
+        addLog("❌ ERROR: " + data.message);
+    });
+
+    document.getElementById("clearLog").onclick = () => {
+        document.getElementById("logBox").value = "";
+    };
+</script>
+
+{% endblock %}

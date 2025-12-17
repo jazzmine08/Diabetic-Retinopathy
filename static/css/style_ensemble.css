@@ -1,0 +1,130 @@
+/* DARK MODE BODY */
+body {
+    background: #0d1117 !important;
+    color: #e6e6e6 !important;
+}
+
+/* Card */
+.dark-card {
+    background: #161b22;
+    border: 1px solid #30363d;
+}
+
+/* Header */
+.card-header-dark {
+    background: #21262d !important;
+    color: #fff !important;
+    border-bottom: 1px solid #30363d;
+}
+
+/* Custom input */
+.dark-input {
+    background: #0d1117;
+    border: 1px solid #30363d;
+    color: #fff;
+    border-radius: 10px;
+}
+.dark-input:focus {
+    border-color: #58a6ff;
+}
+
+/* Button */
+.modern-btn {
+    border-radius: 50px;
+    font-size: 18px;
+    padding: 12px 30px;
+}
+
+/* Spinner */
+.spinner {
+    width: 45px;
+    height: 45px;
+    border: 5px solid #444;
+    border-top: 5px solid #58a6ff;
+    border-radius: 50%;
+    margin: auto;
+    animation: spin 1s linear infinite;
+}
+.hidden {
+    display: none !important;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Progress bar container */
+.progress-container {
+    position: relative;
+    background: #252b33;
+    border-radius: 20px;
+    height: 22px;
+    margin-top: 15px;
+}
+
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: #58a6ff;
+    border-radius: 20px;
+    transition: width 0.3s;
+}
+
+.progress-text {
+    position: absolute;
+    right: 12px;
+    top: 0;
+    color: #fff;
+    font-size: 13px;
+    line-height: 22px;
+}
+
+/* Checkbox */
+.checkbox-container {
+    position: relative;
+    padding-left: 28px;
+    cursor: pointer;
+    user-select: none;
+    margin-top: 8px;
+}
+.checkbox-container input {
+    position: absolute;
+    opacity: 0;
+}
+.checkmark {
+    position: absolute;
+    top: 2px;
+    left: 0;
+    width: 18px;
+    height: 18px;
+    background: #444;
+    border-radius: 5px;
+}
+.checkbox-container input:checked ~ .checkmark {
+    background: #58a6ff;
+}
+.checkmark:after {
+    content: "";
+    display: none;
+}
+.checkbox-container input:checked ~ .checkmark:after {
+    display: block;
+    left: 6px;
+    top: 3px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 3px 3px 0;
+    transform: rotate(45deg);
+}
+
+/* Terminal log */
+.log-terminal-dark {
+    height: 350px;
+    background: #0d1117;
+    color: #39d353;
+    padding: 15px;
+    border-radius: 6px;
+    overflow-y: auto;
+    font-size: 14px;
+}

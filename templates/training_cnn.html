@@ -1,0 +1,203 @@
+{% extends "base.html" %}
+{% block title %}Training Models{% endblock %}
+
+{% block head %}
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+
+<style>
+  .progress { height: 22px; border-radius: 10px; }
+  #log-box {
+      background:#0d1117;
+      color:#c9d1d9;
+      padding:10px;
+      border-radius:6px;
+      font-family:monospace;
+      font-size:13px;
+      height:240px;
+      overflow-y:auto;
+      white-space:pre-wrap;
+  }
+  .chart-wrap { height:320px; }
+  .metric { font-weight:600; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+
+  <!-- =====================================================
+       LEFT PANEL — START + SUMMARY
+  ===================================================== -->
+  <div class="col-md-4">
+    
+    <!-- TRAINING CONTROL -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="fw-bold">Kontrol Training</h5>
+
+        <button id="startTrainingBtn" class="btn btn-warning w-100 mb-2">
+          🚀 Mulai Training Semua Model
+        </button>
+
+        <div class="progress mb-2">
+          <div id="trainProgress" class="progress-bar bg-warning" style="width:0%">0%</div>
+        </div>
+
+        <div class="small text-muted d-flex justify-content-between">
+          <span id="trainStatus">Belum dimulai</span>
+          <span id="trainETA">—</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- LAST SUMMARY -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="fw-bold">Ringkasan Training Terakhir</h5>
+        <div id="lastSummary">Belum ada data.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- =====================================================
+       RIGHT PANEL — LOG + REALTIME CHART
+  ===================================================== -->
+  <div class="col-md-8">
+
+    <!-- LOG -->
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="fw-bold">Log Pelatihan</h5>
+        <div id="log-box"></div>
+      </div>
+    </div>
+
+    <!-- REALTIME CHART -->
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="fw-bold">Grafik Realtime per-Epoch</h5>
+        <canvas id="trainingChart" class="chart-wrap"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+const socket = io();
+const logBox = document.getElementById('log-box');
+const trainProgress = document.getElementById('trainProgress');
+const trainStatus = document.getElementById('trainStatus');
+const trainETA = document.getElementById('trainETA');
+const lastSummary = document.getElementById('lastSummary');
+const startBtn = document.getElementById('startTrainingBtn');
+
+function log(msg){
+    logBox.textContent += msg + "\n";
+    logBox.scrollTop = logBox.scrollHeight;
+}
+
+// ======================
+//   BUTTON ACTION
+// ======================
+startBtn.addEventListener('click', () => {
+  fetch("{{ url_for('start_training') }}", { method: "POST" })   <!-- FIX DI SINI -->
+    .then(r => r.json())
+    .then(d => log("🟢 " + d.message))
+    .catch(e => log("❌ ERROR: " + e));
+});
+
+// ======================
+//   REALTIME CHART
+// ======================
+const ctx = document.getElementById('trainingChart').getContext('2d');
+
+const chartData = { 
+    labels: [],
+    datasets: [
+        { label:"Train Acc (%)", data:[], borderWidth:2, fill:false, tension:0.2 },
+        { label:"Val Acc (%)", data:[], borderWidth:2, fill:false, tension:0.2 }
+    ]
+};
+
+const trainingChart = new Chart(ctx, {
+    type: 'line',
+    data: chartData,
+    options: {
+        responsive:true,
+        maintainAspectRatio:false,
+        scales:{ y:{beginAtZero:true, max:100} }
+    }
+});
+
+// ======================
+//   SOCKET EVENTS
+// ======================
+socket.on('training_log', data => {
+    log(data.message);
+    trainStatus.textContent = data.message;
+});
+
+socket.on('training_epoch', data => {
+    const label = `${data.model} - Epoch ${data.epoch}/${data.epochs}`;
+    
+    chartData.labels.push(label);
+    chartData.datasets[0].data.push(data.train_acc);
+    chartData.datasets[1].data.push(data.val_acc);
+    trainingChart.update();
+
+    log(`📈 ${label} — Train:${data.train_acc}% | Val:${data.val_acc}%`);
+
+    let prog = Math.round((data.epoch / data.epochs) * 100);
+    trainProgress.style.width = prog + "%";
+    trainProgress.textContent = prog + "%";
+
+    trainETA.textContent = `${data.epoch_time_s}s / epoch`;
+});
+
+socket.on('training_done', data => {
+    log("✅ Training selesai");
+    trainStatus.textContent = "Selesai";
+    trainProgress.style.width = "100%";
+    trainProgress.textContent = "100%";
+    trainETA.textContent = "—";
+    fetchSummary();
+});
+
+socket.on('training_error', data => {
+    log("❌ ERROR: " + data.message);
+    trainStatus.textContent = data.message;
+    trainProgress.classList.remove('bg-warning');
+    trainProgress.classList.add('bg-danger');
+});
+
+// ======================
+//  LOAD LAST SUMMARY
+// ======================
+function fetchSummary(){
+  fetch("{{ url_for('get_model_results') }}")
+    .then(r => r.json())
+    .then(d => {
+        if(d.status !== "ok"){
+            lastSummary.textContent = "Tidak ada ringkasan.";
+            return;
+        }
+
+        lastSummary.innerHTML = "";
+        d.results.forEach(rm => {
+            lastSummary.innerHTML += `
+                <div class="metric">${rm.model} — Acc: ${rm.val_acc || rm.acc || "-"}</div>
+            `;
+        });
+    })
+    .catch(err => console.log(err));
+}
+
+</script>
+{% endblock %}

@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% block title %}EDA Dataset{% endblock %}
+{% block head %}
+<style>
+  .sample-img{width:120px;height:120px;object-fit:cover;border-radius:8px;margin:4px;box-shadow:0 1px 6px rgba(0,0,0,.08)}
+  .stat-card{min-height:120px}
+  #hist-img{max-width:100%}
+  pre{background:#0d1117;color:#c9d1d9;padding:10px;border-radius:6px;overflow:auto}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row g-4">
+  <div class="col-md-4">
+    <div class="card stat-card">
+      <div class="card-body">
+        <h5 class="fw-bold">Ringkasan</h5>
+        <p id="totalFiles">Total file: -</p>
+        <p id="numClasses">Jumlah kelas: -</p>
+        <p id="meanStats">Mean intensity / saturation / contrast: -</p>
+        <button id="runEdaBtn" class="btn btn-primary">🔍 Jalankan EDA</button>
+      </div>
+    </div>
+
+    <div class="card mt-3">
+      <div class="card-body">
+        <h6>File corrupt / duplikat</h6>
+        <p><b>Corrupt:</b></p>
+        <div id="corruptList" style="max-height:140px;overflow:auto"></div>
+        <hr>
+        <p><b>Duplikat (sample):</b></p>
+        <div id="dupList" style="max-height:140px;overflow:auto"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-8">
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5>Distribusi per kelas</h5>
+        <img id="hist-img" src="" alt="Histogram" />
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5>Contoh citra per kelas</h5>
+        <div id="samplesGrid" class="d-flex flex-wrap"></div>
+      </div>
+    </div>
+
+    <div class="card mb-3">
+      <div class="card-body">
+        <h5>Detail statistik piksel</h5>
+        <pre id="pixelStats"></pre>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('runEdaBtn').addEventListener('click', () => {
+  runEDA();
+});
+
+async function runEDA(){
+  document.getElementById('runEdaBtn').disabled = true;
+  document.getElementById('runEdaBtn').textContent = 'Menjalankan...';
+  try {
+    const res = await fetch('{{ url_for("run_eda") }}');
+    const data = await res.json();
+    if(data.status !== 'ok'){
+      alert('Gagal EDA: ' + (data.message || 'unknown'));
+      return;
+    }
+    document.getElementById('totalFiles').textContent = 'Total file: ' + data.total_files;
+    document.getElementById('numClasses').textContent = 'Jumlah kelas: ' + data.num_classes;
+    document.getElementById('meanStats').textContent = `Mean intensity ${data.mean_intensity} • Mean saturation ${data.mean_saturation} • Mean contrast ${data.mean_contrast}`;
+
+    // histogram
+    if(data.histogram){
+      document.getElementById('hist-img').src = 'data:image/png;base64,' + data.histogram;
+    }
+
+    // corrupt list
+    const corruptEl = document.getElementById('corruptList');
+    corruptEl.innerHTML = data.corrupted_files.length ? '<ul>' + data.corrupted_files.map(p => '<li style="font-size:12px">'+p+'</li>').join('') + '</ul>' : '<small class="text-success">Tidak ada</small>';
+
+    // duplicates
+    const dupEl = document.getElementById('dupList');
+    dupEl.innerHTML = data.duplicate_files.length ? '<ul>' + data.duplicate_files.slice(0,20).map(p => '<li style="font-size:12px">'+p+'</li>').join('') + '</ul>' : '<small class="text-success">Tidak ada</small>';
+
+    // samples
+    const grid = document.getElementById('samplesGrid');
+    grid.innerHTML = '';
+    const samples = data.sample_images || {};
+    for(const cls of Object.keys(samples)){
+      const imgs = samples[cls];
+      if(!imgs || imgs.length==0) continue;
+      const box = document.createElement('div');
+      box.style.margin = '6px';
+      box.innerHTML = `<div style="font-weight:600;margin-bottom:6px">${cls}</div>` + imgs.map(b => `<img class="sample-img" src="data:image/jpeg;base64,${b}">`).join('');
+      grid.appendChild(box);
+    }
+
+    // pixel stats
+    document.getElementById('pixelStats').textContent = JSON.stringify(data.pixel_stats, null, 2);
+
+  } catch (err){
+    alert('Gagal menjalankan EDA: ' + err);
+    console.error(err);
+  } finally {
+    document.getElementById('runEdaBtn').disabled = false;
+    document.getElementById('runEdaBtn').textContent = '🔍 Jalankan EDA';
+  }
+}
+</script>
+{% endblock %}

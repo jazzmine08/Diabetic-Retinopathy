@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Training Models{% endblock %}
+
+{% block head %}
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+<style>
+  .progress {
+    height: 22px;
+    border-radius: 10px;
+  }
+
+  #log-box {
+    background: #0d1117;
+    color: #c9d1d9;
+    padding: 10px;
+    border-radius: 6px;
+    font-family: monospace;
+    font-size: 13px;
+    height: 220px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+  }
+
+  .metric {
+    font-weight: 700;
+    font-size: 1.05rem;
+  }
+
+  .chart-wrap {
+    height: 300px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+  <div class="col-md-4">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="fw-bold">control</h5>
+        <button id="startTrainingBtn" class="btn btn-warning w-100 mb-2">🚀 Mulai Training</button>
+        <div class="progress mb-2">
+          <div id="trainProgress" class="progress-bar bg-warning" style="width:0%">0%</div>
+        </div>
+        <div class="small text-muted d-flex justify-content-between"><span id="trainStatus">Belum berjalan</span><span
+            id="trainETA">—</span></div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="fw-bold">Ringkasan Terakhir</h5>
+        <div id="lastSummary">Belum ada hasil.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col-md-8">
+    <div class="card shadow-sm mb-3">
+      <div class="card-body">
+        <h5 class="fw-bold">Log Pelatihan</h5>
+        <div id="log-box"></div>
+      </div>
+    </div>
+
+    <div class="card shadow-sm">
+      <div class="card-body">
+        <h5 class="fw-bold">Grafik Realtime per-Epoch</h5>
+        <canvas id="trainingChart" class="chart-wrap"></canvas>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  const socket = io();
+  const startBtn = document.getElementById('startTrainingBtn');
+  const logBox = document.getElementById('log-box');
+  const trainProgress = document.getElementById('trainProgress');
+  const trainStatus = document.getElementById('trainStatus');
+  const trainETA = document.getElementById('trainETA');
+  const lastSummary = document.getElementById('lastSummary');
+
+  function log(msg) { logBox.textContent += msg + "\n"; logBox.scrollTop = logBox.scrollHeight; }
+
+  startBtn.addEventListener('click', () => {
+    fetch("{{ url_for('start_training') }}", { method: "POST" })
+      .then(r => r.json())
+      .then(d => log("🟢 " + d.message))
+      .catch(e => log("❌ " + e));
+  });
+
+  // Chart.js setup
+  const ctx = document.getElementById('trainingChart').getContext('2d');
+  const chartData = {
+    labels: [], datasets: [
+      { label: 'Train Acc (%)', data: [], fill: false, tension: 0.1, borderWidth: 2 },
+      { label: 'Val Acc (%)', data: [], fill: false, tension: 0.1, borderWidth: 2 },
+    ]
+  };
+  const trainingChart = new Chart(ctx, { type: 'line', data: chartData, options: { responsive: true, scales: { y: { beginAtZero: true, max: 100 } } } });
+
+  // socket handlers
+  socket.on('training_log', data => { log(data.message); trainStatus.textContent = data.message; });
+  socket.on('training_epoch', data => {
+    const label = `${data.model} E${data.epoch}/${data.epochs}`;
+    chartData.labels.push(label);
+    chartData.datasets[0].data.push(data.train_acc);
+    chartData.datasets[1].data.push(data.val_acc);
+    trainingChart.update();
+    log(`📈 ${label} — Train: ${data.train_acc}% Val: ${data.val_acc}% (epoch ${data.epoch})`);
+    const totalEpochs = data.epochs;
+    // progress: estimate percent by epochs (coarse)
+    const prog = Math.round((data.epoch / totalEpochs) * 100);
+    trainProgress.style.width = prog + "%";
+    trainProgress.textContent = prog + "%";
+    trainETA.textContent = `${data.epoch_time_s}s / epoch`;
+  });
+  socket.on('training_done', data => { log(data.message); trainProgress.style.width = "100%"; trainProgress.textContent = "100%"; trainStatus.textContent = data.message; fetchSummary(); });
+  socket.on('training_error', data => { log("❌ " + data.message); trainStatus.textContent = data.message; trainProgress.classList.remove('bg-warning'); trainProgress.classList.add('bg-danger'); });
+
+  function fetchSummary() {
+    fetch("{{ url_for('get_model_results') }}")
+      .then(r => r.json())
+      .then(d => {
+        if (d.status === "ok") {
+          lastSummary.innerHTML = "";
+          d.results.forEach(rm => {
+            lastSummary.innerHTML += `<div>${rm.model} — acc:${rm.val_acc || rm.acc || rm.test_acc || "-"}</div>`;
+          });
+        } else { lastSummary.textContent = "Tidak ada ringkasan."; }
+      })
+      .catch(e => console.error(e));
+  }
+</script>
+{% endblock %}

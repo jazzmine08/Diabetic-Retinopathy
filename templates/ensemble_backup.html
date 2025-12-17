@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="container mt-4">
+    <h3 class="fw-bold">🧠 Ensemble Meta-Classifier</h3>
+
+    <button id="btnEns" class="btn btn-primary fw-bold">🔁 Jalankan Ensemble</button>
+
+    <div class="card mt-4">
+        <div class="card-body">
+            <h5>Log Ensemble</h5>
+            <pre id="ensLog" style="height:300px;background:#000;color:#0f0;padding:10px;overflow-y:auto;"></pre>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+<script>
+const socket = io();
+const box = document.getElementById("ensLog");
+function log(x){ box.textContent+=x+"\n"; box.scrollTop = box.scrollHeight; }
+
+document.getElementById("btnEns").onclick = () => {
+
+    fetch("{{ url_for('run_ensemble') }}", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+    })
+    .then(r=>r.json())
+    .then(d=>{
+        log(d.message);
+    })
+    .catch(err=>{
+        log("❌ Error: " + err);
+    });
+
+};
+
+socket.on("ensemble_log", d => log(d.message));
+socket.on("ensemble_done", d => log(d.message));
+socket.on("ensemble_error", d => log("❌ " + d.message));
+</script>
+{% endblock %}

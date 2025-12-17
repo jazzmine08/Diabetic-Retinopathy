@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Hasil Analisis{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-3">
+  <h2 class="mb-4">
+    <i class="fa-solid fa-gauge-high"></i> Dashboard Hasil Analisis Model
+  </h2>
+  <p class="text-muted">
+    Ringkasan performa model deep learning (DenseNet, Inception, EfficientNet) dan hasil ensemble.
+  </p>
+
+  <!-- === Kartu Akurasi Tiap Model === -->
+  <div class="row">
+    <div class="col-md-4">
+      <div class="card text-center shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">DenseNet121</h5>
+          <p class="display-6 text-success fw-bold">90.4%</p>
+          <p class="text-muted mb-0">Akurasi Model</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card text-center shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">InceptionResNetV2</h5>
+          <p class="display-6 text-primary fw-bold">88.9%</p>
+          <p class="text-muted mb-0">Akurasi Model</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-4">
+      <div class="card text-center shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title">EfficientNetV2B0</h5>
+          <p class="display-6 text-warning fw-bold">91.7%</p>
+          <p class="text-muted mb-0">Akurasi Model</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- === Grafik Perbandingan Akurasi === -->
+  <div class="card mt-4 shadow-sm">
+    <div class="card-header bg-primary text-white">
+      <i class="fa-solid fa-chart-column"></i> Grafik Perbandingan Akurasi
+    </div>
+    <div class="card-body">
+      <canvas id="accuracyChart" height="100"></canvas>
+    </div>
+  </div>
+
+  <!-- === Confusion Matrix (Dummy) === -->
+  <div class="card mt-4 shadow-sm">
+    <div class="card-header bg-dark text-white">
+      <i class="fa-solid fa-border-all"></i> Confusion Matrix (Simulasi)
+    </div>
+    <div class="card-body text-center">
+      <div class="table-responsive">
+        <table class="table table-bordered table-hover align-middle">
+          <thead class="table-dark">
+            <tr>
+              <th>Prediksi \ Aktual</th>
+              <th>Normal</th>
+              <th>Mild</th>
+              <th>Moderate</th>
+              <th>Severe</th>
+              <th>Proliferative</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><th>Normal</th><td>1150</td><td>20</td><td>5</td><td>3</td><td>2</td></tr>
+            <tr><th>Mild</th><td>25</td><td>760</td><td>10</td><td>3</td><td>2</td></tr>
+            <tr><th>Moderate</th><td>5</td><td>12</td><td>560</td><td>15</td><td>8</td></tr>
+            <tr><th>Severe</th><td>2</td><td>5</td><td>10</td><td>380</td><td>3</td></tr>
+            <tr><th>Proliferative</th><td>1</td><td>2</td><td>4</td><td>5</td><td>290</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  // === Data Dummy Akurasi ===
+  const ctx = document.getElementById('accuracyChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: ['DenseNet121', 'InceptionResNetV2', 'EfficientNetV2B0', 'Ensemble'],
+      datasets: [{
+        label: 'Akurasi (%)',
+        data: [90.4, 88.9, 91.7, 93.2],
+        backgroundColor: ['#28a745', '#007bff', '#ffc107', '#6610f2']
+      }]
+    },
+    options: {
+      responsive: true,
+      scales: {
+        y: { beginAtZero: true, max: 100 }
+      }
+    }
+  });
+</script>
+{% endblock %}

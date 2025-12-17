@@ -1,0 +1,456 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard Hasil Model — DR Ensemble{% endblock %}
+
+{% block head %}
+<!-- Chart.js + jsPDF + html2canvas -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
+<style>
+  .card { border-radius:8px; box-shadow:0 6px 18px rgba(0,0,0,0.06); }
+  .metric-card { min-height:80px; }
+  .small-muted { color:#6c757d; font-size:13px; }
+  canvas { background: #fff; border-radius:6px; }
+  .confusion-canvas { width:100%; height:320px; border:1px solid #e9ecef; border-radius:6px; }
+
+  /* Loader */
+  .loader-box {
+      display:none;
+      padding:14px;
+      border-radius:10px;
+      background:#eef4ff;
+      border:1px solid #cbd8ff;
+      margin-bottom:15px;
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<div class="container mt-4">
+  <h2 class="mb-3">📊 Dashboard Hasil Training & Evaluasi Model</h2>
+
+  
+  <!-- LOADER -->
+  <div id="loaderPanel" class="loader-box">
+      ⏳ <strong>Sedang generate data... </strong> Mohon tunggu 2-4 detik...
+  </div>
+
+  <!-- BUTTON GENERATE -->
+  <button 
+      onclick="loadModelResults()" 
+      class="btn-generate-model px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 mb-3">
+      🔍 Generate Ulang & Tampilkan Hasil Model
+  </button>
+
+  <div class="row">
+    <div class="col-md-4">
+
+      <label class="form-label">Pilih Sumber Hasil</label>
+      <select id="sourceSelect" class="form-select mb-2">
+        <option value="cnn">CNN results (models/results/cnn)</option>
+        <option value="ensemble">Ensemble results (models/results/ensemble)</option>
+      </select>
+
+      <label class="form-label">Pilih Model / Run</label>
+      <select id="modelSelect" class="form-select mb-3"></select>
+
+      <div id="metaInfo" class="mb-3 small-muted"></div>
+
+      <button id="downloadAllBtn" class="btn btn-primary mb-2">Download JSON</button>
+      <a id="openFolderBtn" class="btn btn-outline-secondary mb-2" href="#" target="_blank">
+        📁 Buka folder hasil
+      </a>
+    </div>
+
+    <div class="col-md-8">
+      <div id="metricsCards" class="row mb-3"></div>
+
+      <div class="card mb-3 p-3">
+        <h5>📈 Grafik Akurasi & Loss</h5>
+        <canvas id="accuracyChart" height="120"></canvas>
+        <canvas id="lossChart" height="120" class="mt-3"></canvas>
+        <div class="mt-2">
+          <button id="downloadChartsPdf" class="btn btn-outline-secondary btn-sm">Download Grafik PDF</button>
+        </div>
+      </div>
+
+      <div class="card mb-3 p-3">
+        <h5>🔢 Confusion Matrix</h5>
+        <canvas id="confusionCanvas" class="confusion-canvas"></canvas>
+        <div class="mt-2">
+          <button id="downloadConfusion" class="btn btn-outline-secondary btn-sm">Download CM PNG</button>
+        </div>
+      </div>
+
+      <div class="card p-3">
+        <h5>📋 Classification Report</h5>
+        <div id="reportTable"></div>
+        <div class="mt-2">
+          <button id="exportCsvBtn" class="btn btn-outline-secondary btn-sm">Export CSV</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+
+<script>
+/* ===========================================================
+   GENERATE BUTTON
+=========================================================== */
+
+function loadModelResults() {
+  const loader = document.getElementById("loaderPanel");
+
+  loader.style.display = "block";
+
+  fetch("/generate_results")
+    .then(res => res.json())
+    .then(data => {
+        loader.style.display = "none";
+
+        if (data.status === "ok") {
+            window.location.reload();
+        } else {
+            alert("Error generate hasil model:\n" + data.message);
+            console.log("stdout:", data.stdout);
+            console.log("stderr:", data.stderr);
+        }
+    })
+    .catch(err => {
+        loader.style.display = "none";
+        alert("Error memanggil server");
+        console.error(err);
+    });
+}
+
+
+
+/* ===========================================================
+   DASHBOARD VIEWER (CNN & ENSEMBLE)
+=========================================================== */
+
+document.addEventListener("DOMContentLoaded", () => {
+  const srcSel = document.getElementById('sourceSelect');
+  const modelSel = document.getElementById('modelSelect');
+  const metricsCards = document.getElementById('metricsCards');
+  const reportTable = document.getElementById('reportTable');
+  const metaInfo = document.getElementById('metaInfo');
+  const openFolderBtn = document.getElementById('openFolderBtn');
+  const downloadAllBtn = document.getElementById('downloadAllBtn');
+
+  let currentData = null;
+  let currentSource = 'cnn';
+  let accChart = null, lossChart = null;
+
+  /* Source change */
+  srcSel.addEventListener('change', () => {
+    currentSource = srcSel.value;
+    loadSource(currentSource);
+  });
+
+  /* Model change */
+  modelSel.addEventListener('change', () => {
+    const key = modelSel.value;
+    if (!currentData) return;
+    displayModel(currentData[key], key);
+  });
+
+  /* Download JSON */
+  downloadAllBtn.addEventListener('click', () => {
+    if (!currentData) return;
+    const blob = new Blob([JSON.stringify(currentData, null, 2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; 
+    a.download = currentSource + "_results.json";
+    a.click(); 
+    URL.revokeObjectURL(url);
+  });
+
+  /* Download Confusion */
+  document.getElementById('downloadConfusion').addEventListener('click', () => {
+    const canvas = document.getElementById('confusionCanvas');
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a'); 
+    a.href = url; 
+    a.download = currentSource + "_confusion.png";
+    a.click();
+  });
+
+  /* Export CSV */
+  document.getElementById('exportCsvBtn').addEventListener('click', () => {
+    const table = document.querySelector('#reportTable table');
+    if(!table){ alert('No table data'); return; }
+    let rows = Array.from(table.querySelectorAll('tr')).map(tr => 
+        Array.from(tr.querySelectorAll('th,td')).map(td => td.innerText)
+    );
+    let csv = rows.map(r => r.map(c => `"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const blob = new Blob([csv], {type:'text/csv'}); 
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); 
+    a.href = url; 
+    a.download = currentSource + '_classification_report.csv'; 
+    a.click(); 
+    URL.revokeObjectURL(url);
+  });
+
+  /* Download PDF for charts */
+  document.getElementById('downloadChartsPdf').addEventListener('click', async () => {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation: 'landscape' });
+    const nodes = [
+        document.getElementById('accuracyChart'),
+        document.getElementById('lossChart'),
+        document.getElementById('confusionCanvas')
+    ];
+    let y = 10;
+
+    for (let n of nodes) {
+      const canvas = n;
+      const dataUrl = canvas.toDataURL('image/png');
+      const imgProps = doc.getImageProperties(dataUrl);
+      const pdfW = doc.internal.pageSize.getWidth() - 20;
+      const pdfH = (imgProps.height * pdfW) / imgProps.width;
+      doc.addImage(dataUrl, 'PNG', 10, y, pdfW, pdfH);
+      y += pdfH + 10;
+
+      if (y + 60 > doc.internal.pageSize.getHeight()) { 
+        doc.addPage(); 
+        y = 10; 
+      }
+    }
+
+    doc.save(currentSource + "_charts.pdf");
+  });
+
+  /* INITIAL LOAD */
+  loadSource("cnn");
+
+
+  /* ======================================================
+     LOAD SOURCE (CNN / ENSEMBLE)
+  ====================================================== */
+  function loadSource(src){
+    modelSel.innerHTML = '';
+    metricsCards.innerHTML = '';
+    reportTable.innerHTML = '';
+    metaInfo.innerHTML = '';
+    currentData = null;
+
+    if (src === 'cnn') {
+      fetch('/models/results/cnn/training_results.json')
+        .then(r => r.json())
+        .then(arr => {
+          const map = {};
+          arr.forEach((it, idx) => { map[it.model || ('run_'+idx)] = it; });
+          currentData = map;
+          populateSelect(map);
+          openFolderBtn.href = '/models/results/cnn/';
+        })
+        .catch(() => {
+          modelSel.innerHTML = '<option value="">-- kosong --</option>';
+          metricsCards.innerHTML = '<div class="alert alert-warning">Tidak ada hasil CNN.</div>';
+        });
+
+    } else {
+      fetch('/models/results/ensemble/ensemble_report.json')
+        .then(r => r.json())
+        .then(j => {
+          currentData = j.results || {};
+          populateSelect(currentData);
+          openFolderBtn.href = '/models/results/ensemble/';
+        })
+        .catch(() => {
+          modelSel.innerHTML = '<option value="">-- kosong --</option>';
+          metricsCards.innerHTML = '<div class="alert alert-warning">Tidak ada hasil ensemble.</div>';
+        });
+    }
+  }
+
+
+  /* POPULATE SELECT */
+  function populateSelect(mapObj){
+    modelSel.innerHTML = '';
+    const keys = Object.keys(mapObj || {});
+    if(keys.length === 0){
+      modelSel.innerHTML = '<option value="">-- kosong --</option>';
+      metricsCards.innerHTML = '<div class="alert alert-warning">Tidak ada hasil untuk sumber ini.</div>';
+      return;
+    }
+    keys.forEach(k => {
+      const opt = document.createElement('option'); 
+      opt.value = k; 
+      opt.text = k; 
+      modelSel.appendChild(opt);
+    });
+    modelSel.value = keys[0];
+    displayModel(mapObj[keys[0]], keys[0]);
+  }
+
+
+  /* DISPLAY MODEL DETAIL */
+  function displayModel(item, key){
+    metricsCards.innerHTML = '';
+    reportTable.innerHTML = '';
+    metaInfo.innerHTML = '';
+
+    if(!item) { metricsCards.innerHTML = '<div class="alert alert-warning">Data kosong</div>'; return; }
+
+    metaInfo.innerHTML = `
+      <div><strong>Key / Model:</strong> ${key}</div>
+      <div class="small-muted">Updated: ${item.created_at||item.eval_created_at||''}</div>
+    `;
+
+    const acc = formatMetric(item.accuracy, item.best_val_accuracy);
+    const f1 = formatMetric(item.f1_macro);
+    const prec = formatMetric(item.precision_macro);
+    const rec = formatMetric(item.recall_macro);
+
+    metricsCards.innerHTML = `
+      <div class="col-md-3 mb-2"><div class="card metric-card p-2"><div class="small-muted">Accuracy</div><h5>${acc}</h5></div></div>
+      <div class="col-md-3 mb-2"><div class="card metric-card p-2"><div class="small-muted">F1 (macro)</div><h5>${f1}</h5></div></div>
+      <div class="col-md-3 mb-2"><div class="card metric-card p-2"><div class="small-muted">Precision</div><h5>${prec}</h5></div></div>
+      <div class="col-md-3 mb-2"><div class="card metric-card p-2"><div class="small-muted">Recall</div><h5>${rec}</h5></div></div>
+    `;
+
+    /* CHARTS */
+    if(item.history){
+      renderHistoryCharts(item.history);
+    } else {
+      clearHistoryCharts();
+    }
+
+    /* CONFUSION MATRIX */
+    renderConfusion(item.confusion_matrix || []);
+
+    /* REPORT */
+    renderReportTable(item.classification_report || item.report || {});
+  }
+
+
+  function formatMetric(a, b){
+    let x = a !== undefined ? a : b;
+    return x !== undefined ? Number(x).toFixed(4) : "-";
+  }
+
+
+  /* RENDER CHARTS */
+  function renderHistoryCharts(history){
+    const accCanvas = document.getElementById('accuracyChart');
+    const lossCanvas = document.getElementById('lossChart');
+
+    const acc = history['accuracy'] || [];
+    const valAcc = history['val_accuracy'] || [];
+    const loss = history['loss'] || [];
+    const valLoss = history['val_loss'] || [];
+
+    const epochs = Math.max(acc.length, valAcc.length, loss.length, valLoss.length);
+    const labels = Array.from({length: epochs}, (_,i)=>'E'+(i+1));
+
+    if(accChart) accChart.destroy();
+    if(lossChart) lossChart.destroy();
+
+    accChart = new Chart(accCanvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Train Accuracy', data: acc, borderColor:'#1f77b4', fill:false },
+          { label: 'Val Accuracy', data: valAcc, borderColor:'#ff7f0e', fill:false }
+        ]
+      }
+    });
+
+    lossChart = new Chart(lossCanvas, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Train Loss', data: loss, borderColor:'#2ca02c', fill:false },
+          { label: 'Val Loss', data: valLoss, borderColor:'#d62728', fill:false }
+        ]
+      }
+    });
+  }
+
+  function clearHistoryCharts(){
+    if(accChart){ accChart.destroy(); accChart = null; }
+    if(lossChart){ lossChart.destroy(); lossChart = null; }
+  }
+
+  /* CONFUSION MATRIX */
+  function renderConfusion(cm){
+    const canvas = document.getElementById('confusionCanvas');
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0,0,canvas.width, canvas.height);
+
+    if(!cm || cm.length===0){
+      ctx.fillStyle='#666';
+      ctx.fillText('No confusion matrix', 10, 20);
+      return;
+    }
+
+    const n = cm.length;
+    const cellW = Math.floor(canvas.width / n);
+    const cellH = Math.floor(canvas.height / n);
+    const flatMax = Math.max(...cm.flat());
+
+    for(let i=0;i<n;i++){
+      for(let j=0;j<n;j++){
+        const v = cm[i][j] || 0;
+        const a = flatMax ? (v/flatMax) : 0;
+        ctx.fillStyle = `rgba(12,70,160,${0.12 + 0.88*a})`;
+        ctx.fillRect(j*cellW, i*cellH, cellW-1, cellH-1);
+
+        ctx.fillStyle = a > 0.5 ? '#fff' : '#000';
+        ctx.font = `${Math.min(14, Math.floor(cellH/2))}px Arial`;
+        ctx.fillText(String(v), j*cellW + 6, i*cellH + (cellH/2) + 6);
+      }
+    }
+  }
+
+
+  /* CLASSIFICATION REPORT */
+  function renderReportTable(report){
+    if(!report || Object.keys(report).length===0){
+      reportTable.innerHTML = '<div class="text-muted">No classification report</div>';
+      return;
+    }
+    let html = `
+      <table class="table table-sm table-striped">
+      <thead><tr>
+        <th>Class</th><th>Precision</th><th>Recall</th><th>F1</th><th>Support</th>
+      </tr></thead><tbody>
+    `;
+
+    Object.keys(report).forEach(cls => {
+      const row = report[cls];
+      if(typeof row === 'object'){
+        html += `
+          <tr>
+            <td>${cls}</td>
+            <td>${Number(row.precision||0).toFixed(4)}</td>
+            <td>${Number(row.recall||0).toFixed(4)}</td>
+            <td>${Number(row.f1_score||row.f1||0).toFixed(4)}</td>
+            <td>${row.support||0}</td>
+          </tr>
+        `;
+      }
+    });
+
+    html += `</tbody></table>`;
+    reportTable.innerHTML = html;
+  }
+
+});
+</script>
+
+{% endblock %}

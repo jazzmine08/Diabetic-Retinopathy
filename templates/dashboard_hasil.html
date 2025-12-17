@@ -1,0 +1,54 @@
+{% extends "base.html" %}
+{% block title %}Dashboard Hasil Analisis{% endblock %}
+{% block content %}
+  <h2>📈 Dashboard Hasil Analisis Model</h2>
+  <p class="text-muted">Perbandingan performa model CNN pada dataset Retinopati Diabetik.</p>
+
+  <div class="row mt-4">
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-primary text-white">Akurasi Tiap Model</div>
+        <div class="card-body">
+          <table class="table table-striped">
+            <tr><th>Model</th><th>Akurasi</th></tr>
+            <tr><td>DenseNet121</td><td>92.4%</td></tr>
+            <tr><td>InceptionResNetV2</td><td>89.7%</td></tr>
+            <tr><td>EfficientNetV2B0</td><td>93.5%</td></tr>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-md-6">
+      <div class="card">
+        <div class="card-header bg-success text-white">Grafik Perbandingan Akurasi</div>
+        <div class="card-body">
+          <canvas id="accuracyChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card mt-4">
+    <div class="card-header bg-dark text-white">Confusion Matrix (Dummy)</div>
+    <div class="card-body text-center">
+      <img src="https://dummyimage.com/400x300/cccccc/000000.png&text=Confusion+Matrix+Dummy" alt="Confusion Matrix Dummy">
+    </div>
+  </div>
+
+  <script>
+    const ctx = document.getElementById('accuracyChart').getContext('2d');
+    new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels: ['DenseNet121', 'InceptionResNetV2', 'EfficientNetV2B0'],
+        datasets: [{
+          label: 'Akurasi Model (%)',
+          data: [92.4, 89.7, 93.5],
+          backgroundColor: ['#007bff', '#28a745', '#ffc107']
+        }]
+      },
+      options: { scales: { y: { beginAtZero: true, max: 100 } } }
+    });
+  </script>
+{% endblock %}

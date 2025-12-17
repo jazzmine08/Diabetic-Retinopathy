@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Prototipe{% endblock %}</title>
+
+  <!-- BOOTSTRAP -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+  <!-- BOOTSTRAP ICONS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css">
+
+  <!-- FONT AWESOME -->
+  <script src="https://kit.fontawesome.com/2d3e5e4c11.js" crossorigin="anonymous"></script>
+
+  <!-- CUSTOM CSS -->
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style_ensemble.css') }}">
+
+  <style>
+    body { 
+      background-color: #f4f6f9; 
+      font-family: "Segoe UI", sans-serif; 
+    }
+
+    .sidebar { 
+      height: 100vh; 
+      background-color: #343a40; 
+      color: white; 
+      position: fixed; 
+      width: 230px; 
+      padding-top: 10px;
+      box-shadow: 3px 0px 10px rgba(0,0,0,0.15);
+    }
+
+    .sidebar-logo {
+      text-align: center;
+      margin-bottom: 15px;
+    }
+
+    .sidebar-logo img {
+      width: 65px;
+      border-radius: 50%;
+      box-shadow: 0px 4px 12px rgba(255,255,255,0.15);
+    }
+
+    .sidebar-title {
+      text-align: center;
+      font-weight: bold;
+      font-size: 18px;
+      margin-top: 8px;
+      margin-bottom: 18px;
+    }
+
+    .sidebar a { 
+      color: #adb5bd; 
+      display: flex;
+      align-items: center;
+      padding: 10px 18px; 
+      text-decoration: none; 
+      font-size: 15px;
+      transition: 0.2s;
+    }
+
+    .sidebar a i {
+      font-size: 17px;
+      width: 22px;
+    }
+
+    .sidebar a:hover, 
+    .sidebar a.active { 
+      background: #495057; 
+      color: #fff; 
+      border-radius: 4px; 
+    }
+
+    .content { 
+      margin-left: 240px; 
+      padding: 20px; 
+    }
+  </style>
+
+  {% block head %}{% endblock %}
+</head>
+
+<body>
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+
+    
+    <h5 class="sidebar-title">
+      <i class="bi bi-eye-fill me-1"></i> Menu
+    </h5>
+
+    <!-- NAVIGATION -->
+    <a href="{{ url_for('index') }}" class="{% if request.endpoint=='index' %}active{% endif %}">
+      <i class="bi bi-house-door-fill"></i> Home
+    </a>
+
+    <a href="{{ url_for('preprocessing') }}" class="{% if request.endpoint=='preprocessing' %}active{% endif %}">
+      <i class="bi bi-sliders"></i> Preprocessing
+    </a>
+
+    <a href="{{ url_for('eda') }}" class="{% if request.endpoint=='eda' %}active{% endif %}">
+      <i class="bi bi-graph-up"></i> EDA
+    </a>
+
+    <a href="{{ url_for('training_cnn') }}" class="{% if request.endpoint=='training_cnn' %}active{% endif %}">
+      <i class="bi bi-cpu-fill"></i> Training CNN
+    </a>
+
+    <a href="{{ url_for('ensemble') }}" class="{% if request.endpoint=='ensemble' %}active{% endif %}">
+      <i class="bi bi-layers-fill"></i> Training Ensemble
+    </a>
+
+    <a href="{{ url_for('hasil_model') }}" class="{% if request.endpoint=='hasil_model' %}active{% endif %}">
+      <i class="bi bi-bar-chart-line-fill"></i> Hasil Model
+    </a>
+
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+    {% block content %}{% endblock %}
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  {% block scripts %}{% endblock %}
+
+</body>
+</html>

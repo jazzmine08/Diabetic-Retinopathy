@@ -1,0 +1,474 @@
+{% extends "base.html" %}
+
+{% block title %}Hasil Model CNN & Ensemble – Dashboard{% endblock %}
+
+{% block head %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
+
+<style>
+  :root {
+    --bg: #eef2f7;
+    --card: #ffffff;
+    --text: #1b2533;
+    --text-soft: #334155;
+    --accent: #2563eb;
+    --radius: 10px;
+  }
+  
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Segoe UI", Inter, system-ui;
+  }
+  
+  /* HEADER CARD */
+  .header-card {
+    background: var(--card);
+    border-left: 5px solid var(--accent);
+    padding: 18px;
+    margin-bottom: 20px;
+    border-radius: var(--radius);
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  }
+  
+  .header-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: #0f172a; /* lebih gelap */
+  }
+  
+  .small-muted {
+    color: #475569; /* lebih kontras */
+  }
+  
+  .banner {
+    background: #e5edff;
+    color: #1e293b;
+    padding: 8px 12px;
+    margin-top: 4px;
+    border-radius: var(--radius);
+    font-size: 14px;
+  }
+  
+  /* GRID NEW */
+  .grid {
+    display: grid;
+    gap: 16px;
+  }
+  
+  .grid-3 {
+    grid-template-columns: 1.3fr 1.7fr 1fr;
+  }
+  
+  .grid-2 {
+    grid-template-columns: 1.4fr 1fr;
+  }
+  
+  /* CARD */
+  .card {
+    background: var(--card);
+    border-radius: var(--radius);
+    padding: 14px;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    color: var(--text);
+  }
+  
+  /* CONFUSION MATRIX — DIPERKECIL */
+  #confCanvas {
+    width: 100%;
+    height: 220px !important; /* dari 360 → 220 */
+    display: block;
+  }
+  
+  /* CLASSIFICATION REPORT DIPERKECIL */
+  #reportTable table {
+    font-size: 12px;
+  }
+  #reportTable td, #reportTable th {
+    padding: 4px;
+  }
+  
+  /* BORDER & GRID LINES */
+  .cm-grid-line {
+    stroke: rgba(0,0,0,0.25);
+    stroke-width: 1;
+  }
+  
+  /* TOAST */
+  .toast {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: white;
+    border-left: 5px solid var(--accent);
+    padding: 12px 16px;
+    border-radius: var(--radius);
+    box-shadow: 0 4px 14px rgba(0,0,0,0.15);
+    display: none;
+    font-size: 14px;
+  }
+  </style>
+  
+{% endblock %}
+
+{% block content %}
+<div class="container-xl">
+
+  <!-- HEADER CARD -->
+  <div class="header-card">
+    <div class="header-icon">
+      <i class="fa-solid fa-chart-line" style="font-size:22px;"></i>
+    </div>
+
+    <div style="flex:1;">
+      <div class="header-title">Dashboard Hasil Model CNN & Ensemble</div>
+      <div class="small-muted">Analisis performa model, grafik, confusion matrix & laporan lengkap.</div>
+
+      <div class="banner">
+        Improving Diabetic Retinopathy Grading Accuracy with a CNN-Based Ensemble Method.
+      </div>
+    </div>
+
+    <div style="display:flex;gap:10px;">
+      <div id="loaderElm" class="loader">
+        <div class="spinner"></div>
+        <span id="loaderText">Memuat data...</span>
+      </div>
+
+      <button id="reloadBtn" class="btn btn-primary">Reload</button>
+      <button id="validateBtn" class="btn btn-ghost">Validate</button>
+    </div>
+  </div>
+
+  <!-- SELECTOR -->
+  <div style="margin-bottom:16px;">
+    <label>Sumber:</label>
+    <select id="sourceSelect" class="btn btn-ghost">
+      <option value="cnn">CNN Results</option>
+      <option value="ensemble">Ensemble Results</option>
+    </select>
+
+    <select id="modelSelect" class="btn btn-ghost"></select>
+  </div>
+
+  <!-- GRID ATAS -->
+  <div class="grid grid-3">
+    <div class="card" id="cardMetrics"></div>
+
+    <div class="card">
+      <canvas id="chartAcc" height="140"></canvas>
+      <canvas id="chartLoss" height="140" style="margin-top:14px;"></canvas>
+    </div>
+
+    <div class="card">
+      <button id="downloadJsonBtn" class="btn btn-ghost" style="width:100%;margin-bottom:8px;">Download JSON</button>
+      <button id="downloadCsvBtn" class="btn btn-ghost" style="width:100%;margin-bottom:8px;">Download CSV</button>
+      <button id="downloadPdfBtn" class="btn btn-ghost" style="width:100%;">Download PDF</button>
+    </div>
+  </div>
+
+  <!-- GRID BAWAH -->
+  <div class="grid grid-2" style="margin-top:16px;">
+
+    <!-- KIRI -->
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <h4>Confusion Matrix</h4>
+        <canvas id="confCanvas"></canvas>
+      </div>
+
+      <div class="card">
+        <h4>Classification Report</h4>
+        <div id="reportTable"></div>
+      </div>
+    </div>
+
+    <!-- KANAN -->
+    <div>
+      <div class="card" style="margin-bottom:16px;">
+        <h4>Informasi Model</h4>
+        <div id="metaInfo"></div>
+      </div>
+
+      <div class="card">
+        <h4>Perbandingan Semua Model</h4>
+        <canvas id="barAcc" height="240"></canvas>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<div id="toast" class="toast"></div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+/* ---------- Utilities & UI helpers ---------- */
+function showLoader(on, text){
+  const l = document.getElementById('loaderElm');
+  const t = document.getElementById('loaderText');
+  if (text) t.innerText = text;
+  l.style.display = on ? 'inline-flex' : 'none';
+}
+function showToast(type, message, timeout=3200){
+  const el = document.getElementById('toast');
+  el.className = 'toast ' + (type==='success'?'success':'error');
+  el.innerText = message;
+  el.style.display = 'block';
+  setTimeout(()=>{ el.style.display = 'none'; }, timeout);
+}
+
+/* ---------- state ---------- */
+let state = {cnn:{}, ensemble:{}, generated_at:null};
+let accChart=null, lossChart=null, barChart=null;
+
+/* ---------- render helpers ---------- */
+function formatNum(v){
+  if (v === null || v === undefined) return '-';
+  const n = Number(v);
+  if (isNaN(n)) return '-';
+  return n.toFixed(4);
+}
+
+function renderMetrics(item, key){
+  const el = document.getElementById('cardMetrics');
+  const acc = item.accuracy ?? item.best_val_accuracy ?? '-';
+  const f1  = item.f1_macro ?? item.f1 ?? '-';
+
+  el.innerHTML = `
+    <h4 style="margin-bottom:6px;">🏷 ${key}</h4>
+    <div class="small-muted">Updated: ${item.created_at || ''}</div>
+
+    <div style="display:flex;gap:10px;margin-top:12px;">
+      <div class="card" style="flex:1;padding:10px;">
+        <div class="small-muted">Accuracy</div>
+        <h3 style="margin:6px 0 0 0;">${formatNum(acc)}</h3>
+      </div>
+      <div class="card" style="flex:1;padding:10px;">
+        <div class="small-muted">F1 (macro)</div>
+        <h3 style="margin:6px 0 0 0;">${formatNum(f1)}</h3>
+      </div>
+    </div>
+  `;
+}
+
+function renderHistoryCharts(history){
+  const acc = history.accuracy || history.acc || [];
+  const valAcc = history.val_accuracy || history.val_acc || [];
+  const loss = history.loss || [];
+  const valLoss = history.val_loss || [];
+  const epochs = Math.max(acc.length, valAcc.length, loss.length, valLoss.length, 1);
+  const labels = Array.from({length:epochs},(_,i)=>'E'+(i+1));
+
+  if (accChart) accChart.destroy();
+  accChart = new Chart(document.getElementById('chartAcc'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Train Acc', data:acc, borderColor:'#3b82f6', fill:false },
+      { label:'Val Acc', data:valAcc, borderColor:'#60a5fa', fill:false }
+    ]},
+    options:{ responsive:true, plugins:{legend:{display:true}} }
+  });
+
+  if (lossChart) lossChart.destroy();
+  lossChart = new Chart(document.getElementById('chartLoss'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Train Loss', data:loss, borderColor:'#10b981', fill:false },
+      { label:'Val Loss', data:valLoss, borderColor:'#ef4444', fill:false }
+    ]},
+    options:{ responsive:true, plugins:{legend:{display:true}} }
+  });
+}
+
+function renderConfusion(cm) {
+  const canvas = document.getElementById('confCanvas');
+  const ctx = canvas.getContext('2d');
+
+  ctx.clearRect(0,0,canvas.width, canvas.height);
+
+  if (!cm || cm.length === 0) {
+    ctx.fillStyle = '#475569';
+    ctx.fillText('No confusion matrix', 10, 20);
+    return;
+  }
+
+  const n = cm.length;
+  const cellW = canvas.width / n;
+  const cellH = canvas.height / n;
+
+  const flatMax = Math.max(...cm.flat());
+
+  // gambar cell
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const v = cm[i][j] || 0;
+      const ratio = flatMax ? v / flatMax : 0;
+
+      // warna background cell
+      const bg = `rgba(37, 99, 235, ${0.12 + ratio * 0.68})`;
+      ctx.fillStyle = bg;
+      ctx.fillRect(j * cellW, i * cellH, cellW, cellH);
+
+      // tentukan warna teks berdasarkan brightness
+      const textColor = ratio > 0.45 ? "#fff" : "#1e293b";
+      ctx.fillStyle = textColor;
+      ctx.font = `${Math.min(14, cellH / 2)}px Segoe UI`;
+      ctx.fillText(
+        String(v),
+        j * cellW + cellW / 2 - 6,
+        i * cellH + cellH / 2 + 6
+      );
+    }
+  }
+
+  // grid line
+  ctx.strokeStyle = "rgba(0,0,0,0.25)";
+  ctx.lineWidth = 1;
+
+  for (let i = 0; i <= n; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, i * cellH);
+    ctx.lineTo(canvas.width, i * cellH);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(i * cellW, 0);
+    ctx.lineTo(i * cellW, canvas.height);
+    ctx.stroke();
+  }
+}
+
+
+function renderReportTable(report){
+  const el = document.getElementById('reportTable');
+  if(!report || Object.keys(report).length===0){ el.innerHTML = '<div class="small-muted">No classification report</div>'; return; }
+  let html = `<table style="width:100%;border-collapse:collapse"><thead style="color:var(--muted)"><tr><th style="text-align:left;padding:8px">Class</th><th style="padding:8px">Precision</th><th style="padding:8px">Recall</th><th style="padding:8px">F1</th><th style="padding:8px">Support</th></tr></thead><tbody>`;
+  for(const cls of Object.keys(report)){
+    const r = report[cls];
+    if(typeof r==='object'){
+      html += `<tr style="border-top:1px solid rgba(255,255,255,0.02)"><td style="padding:8px">${cls}</td><td style="padding:8px">${formatNum(r.precision)}</td><td style="padding:8px">${formatNum(r.recall)}</td><td style="padding:8px">${formatNum(r.f1_score||r.f1)}</td><td style="padding:8px">${r.support||0}</td></tr>`;
+    }
+  }
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+function renderBarComparison(all){
+  const labels = Object.keys(all);
+  const vals = labels.map(k => all[k].accuracy || 0);
+  if(barChart) barChart.destroy();
+  barChart = new Chart(document.getElementById('barAcc'), {
+    type:'bar',
+    data:{ labels, datasets:[{ label:'Accuracy', data:vals, backgroundColor:'#3b82f6' }] },
+    options:{ responsive:true, plugins:{legend:{display:false}} }
+  });
+}
+
+/* ---------- DATA FLOW ---------- */
+async function loadData(auto=true){
+  showLoader(true, auto ? 'Auto memuat data...' : 'Memuat data...');
+  try {
+    const res = await fetch('/api/evaluation');
+    if(!res.ok){ showLoader(false); showToast('error','Gagal memuat data'); return; }
+    const j = await res.json();
+    if(j.status !== 'ok'){ showLoader(false); showToast('error','API error'); return; }
+    state = j.data || state;
+    document.getElementById('metaInfo').innerText = 'Generated at: ' + (state.generated_at || '');
+    populateSourceAndModel();
+    showLoader(false);
+    showToast('success','Data berhasil dimuat',1500);
+  } catch(e){
+    showLoader(false);
+    console.error(e);
+    showToast('error','Error saat memuat data: ' + (e.message || e));
+  }
+}
+
+function populateSourceAndModel(){
+  const src = document.getElementById('sourceSelect').value;
+  const modelSel = document.getElementById('modelSelect');
+  const data = (src==='cnn' ? state.cnn : state.ensemble) || {};
+  modelSel.innerHTML = '';
+  const keys = Object.keys(data);
+  if(keys.length === 0){ modelSel.innerHTML = '<option>-- kosong --</option>'; document.getElementById('cardMetrics').innerHTML = '<div class="small-muted">No data</div>'; return; }
+  for(const k of keys){ const o=document.createElement('option'); o.value=k; o.text=k; modelSel.appendChild(o); }
+  modelSel.value = keys[0];
+  renderSelectedModel();
+}
+
+function renderSelectedModel(){
+  const src = document.getElementById('sourceSelect').value;
+  const key = document.getElementById('modelSelect').value;
+  const data = (src==='cnn' ? state.cnn : state.ensemble) || {};
+  const item = data[key];
+  if(!item){ document.getElementById('cardMetrics').innerHTML = '<div class="small-muted">No model selected</div>'; renderConfusion([]); renderReportTable({}); return; }
+  renderMetrics(item, key);
+  if(item.history) renderHistoryCharts(item.history);
+  else { if(accChart){ accChart.destroy(); accChart = null; } if(lossChart){ lossChart.destroy(); lossChart = null; } }
+  renderConfusion(item.confusion_matrix || []);
+  renderReportTable(item.classification_report || item.report || {});
+  const all = Object.assign({}, state.cnn || {}, state.ensemble || {});
+  const met = {};
+  Object.keys(all).forEach(k => met[k] = { accuracy: all[k].accuracy ?? all[k].best_val_accuracy ?? 0 });
+  renderBarComparison(met);
+
+  /* Download handlers */
+  document.getElementById('downloadJsonBtn').onclick = ()=>{
+    const blob = new Blob([JSON.stringify(item,null,2)],{type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `${key}_result.json`; a.click(); URL.revokeObjectURL(a.href);
+  };
+  document.getElementById('downloadCsvBtn').onclick = ()=>{
+    const rpt = item.classification_report || {};
+    const rows = [['class','precision','recall','f1','support']];
+    Object.keys(rpt).forEach(c=>{ const r=rpt[c]; if(typeof r==='object') rows.push([c,r.precision||'',r.recall||'',r.f1_score||r.f1||'',r.support||'']); });
+    const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+    const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'})); a.download=`${key}_report.csv`; a.click();
+  };
+  document.getElementById('downloadPdfBtn').onclick = async ()=>{
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ orientation:'landscape' });
+    const nodes = [document.getElementById('chartAcc'), document.getElementById('chartLoss'), document.getElementById('confCanvas')];
+    let y = 10;
+    for(const n of nodes){
+      try{
+        const dataUrl = n.toDataURL('image/png');
+        const imgProps = doc.getImageProperties(dataUrl);
+        const pdfW = doc.internal.pageSize.getWidth() - 20;
+        const pdfH = (imgProps.height * pdfW) / imgProps.width;
+        doc.addImage(dataUrl,'PNG',10,y,pdfW,pdfH);
+        y += pdfH + 8;
+        if(y + 80 > doc.internal.pageSize.getHeight()){ doc.addPage(); y = 10; }
+      }catch(e){ console.warn('pdf error', e); }
+    }
+    doc.save(`${key}_charts.pdf`);
+  };
+}
+
+/* ---------- Events ---------- */
+document.addEventListener('DOMContentLoaded', ()=>{
+  document.getElementById('sourceSelect').addEventListener('change', populateSourceAndModel);
+  document.getElementById('modelSelect').addEventListener('change', renderSelectedModel);
+  document.getElementById('reloadBtn').addEventListener('click', ()=> loadData(false));
+  document.getElementById('validateBtn').addEventListener('click', async ()=>{
+    showLoader(true,'Validating files...');
+    try{
+      const r = await fetch('/generate_results');
+      const j = await r.json();
+      showLoader(false);
+      if(j.status === 'ok') showToast('success','Files OK'); else showToast('error', j.message || 'Validate error');
+    }catch(e){ showLoader(false); showToast('error','Validate error: '+(e.message||e)); }
+  });
+
+  loadData(true);
+});
+</script>
+{% endblock %}
